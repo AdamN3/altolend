@@ -1,14 +1,17 @@
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
 import joblib
 import pandas as pd
+import psycopg2
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from psycopg2.extras import RealDictCursor
 from pydantic import BaseModel, Field
 
 load_dotenv()
@@ -17,7 +20,68 @@ MODEL_PATH = "model.pkl"
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-latest")
 BIAS_PASS_THRESHOLD = 3
 
-app = FastAPI(title="AI Loan Approval API", version="1.0.0")
+
+def _normalize_database_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+
+def get_db_connection():
+    url = os.getenv("DATABASE_URL")
+    if not url or not url.strip():
+        raise HTTPException(
+            status_code=503,
+            detail="DATABASE_URL is not configured. Set it in your .env file.",
+        )
+    try:
+        return psycopg2.connect(_normalize_database_url(url.strip()))
+    except psycopg2.Error as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database connection failed: {exc}",
+        ) from exc
+
+
+def ensure_loans_table() -> None:
+    url = os.getenv("DATABASE_URL")
+    if not url or not url.strip():
+        return
+    conn = psycopg2.connect(_normalize_database_url(url.strip()))
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS loans (
+                    id SERIAL PRIMARY KEY,
+                    no_of_dependents INTEGER NOT NULL,
+                    education VARCHAR(255) NOT NULL,
+                    self_employed VARCHAR(50) NOT NULL,
+                    income_annum BIGINT NOT NULL,
+                    loan_amount BIGINT NOT NULL,
+                    loan_term INTEGER NOT NULL,
+                    cibil_score INTEGER NOT NULL,
+                    residential_assets_value BIGINT NOT NULL,
+                    commercial_assets_value BIGINT NOT NULL,
+                    luxury_assets_value BIGINT NOT NULL,
+                    bank_asset_value BIGINT NOT NULL,
+                    decision VARCHAR(20) NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_loans_table()
+    yield
+
+
+app = FastAPI(title="AI Loan Approval API", version="1.0.0", lifespan=lifespan)
 
 
 def _parse_origins() -> list[str]:
@@ -91,6 +155,7 @@ class NextBestOfferResponse(BaseModel):
 
 
 class StoredApplication(BaseModel):
+    id: int
     timestamp_utc: str
     applicant_email: str | None = None
     input_data: LoanApplicationInput
@@ -100,7 +165,6 @@ class StoredApplication(BaseModel):
 
 _model = None
 _anthropic_client = None
-_applications_store: list[StoredApplication] = []
 
 
 def get_model() -> Any:
@@ -210,6 +274,81 @@ def ask_claude(prompt: str, max_tokens: int = 500) -> str:
     return output
 
 
+def _save_loan_application(application: LoanApplicationInput, decision: str) -> None:
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO loans (
+                    no_of_dependents, education, self_employed, income_annum,
+                    loan_amount, loan_term, cibil_score, residential_assets_value,
+                    commercial_assets_value, luxury_assets_value, bank_asset_value,
+                    decision
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                );
+                """,
+                (
+                    application.no_of_dependents,
+                    application.education.strip(),
+                    application.self_employed.strip(),
+                    application.income_annum,
+                    application.loan_amount,
+                    application.loan_term,
+                    application.cibil_score,
+                    application.residential_assets_value,
+                    application.commercial_assets_value,
+                    application.luxury_assets_value,
+                    application.bank_asset_value,
+                    decision,
+                ),
+            )
+        conn.commit()
+    except psycopg2.Error as exc:
+        conn.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save application to database: {exc}",
+        ) from exc
+    finally:
+        conn.close()
+
+
+def _row_to_stored_application(row: dict[str, Any]) -> StoredApplication:
+    created = row["created_at"]
+    if isinstance(created, datetime):
+        ts = created.astimezone(timezone.utc).isoformat()
+    else:
+        ts = str(created)
+
+    dec = str(row["decision"]).lower()
+    prediction = 1 if dec == "approved" else 0
+
+    input_data = LoanApplicationInput(
+        no_of_dependents=row["no_of_dependents"],
+        education=str(row["education"]).strip(),
+        self_employed=str(row["self_employed"]).strip(),
+        income_annum=int(row["income_annum"]),
+        loan_amount=int(row["loan_amount"]),
+        loan_term=int(row["loan_term"]),
+        cibil_score=int(row["cibil_score"]),
+        residential_assets_value=int(row["residential_assets_value"]),
+        commercial_assets_value=int(row["commercial_assets_value"]),
+        luxury_assets_value=int(row["luxury_assets_value"]),
+        bank_asset_value=int(row["bank_asset_value"]),
+    )
+
+    return StoredApplication(
+        id=int(row["id"]),
+        timestamp_utc=ts,
+        applicant_email=None,
+        input_data=input_data,
+        decision=dec,
+        prediction=prediction,
+    )
+
+
 @app.get("/")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
@@ -222,14 +361,7 @@ def predict(application: LoanApplicationInput) -> PredictResponse:
     prediction = int(model.predict(features)[0])
     decision = "approved" if prediction == 1 else "rejected"
 
-    _applications_store.append(
-        StoredApplication(
-            timestamp_utc=datetime.now(timezone.utc).isoformat(),
-            input_data=application,
-            decision=decision,
-            prediction=prediction,
-        )
-    )
+    _save_loan_application(application, decision)
     return PredictResponse(decision=decision, prediction=prediction)
 
 
@@ -315,5 +447,21 @@ def next_best_offer(payload: NextBestOfferRequest) -> NextBestOfferResponse:
 
 @app.get("/applications", response_model=list[StoredApplication])
 def applications() -> list[StoredApplication]:
-    # Database integration can replace this in-memory store later.
-    return _applications_store
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, no_of_dependents, education, self_employed, income_annum,
+                       loan_amount, loan_term, cibil_score, residential_assets_value,
+                       commercial_assets_value, luxury_assets_value, bank_asset_value,
+                       decision, created_at
+                FROM loans
+                ORDER BY id ASC;
+                """
+            )
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    return [_row_to_stored_application(dict(r)) for r in rows]
