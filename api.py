@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -17,7 +18,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 MODEL_PATH = "model.pkl"
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-latest")
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 BIAS_PASS_THRESHOLD = 3
 
 
@@ -254,6 +255,33 @@ def _extract_text(response: Any) -> str:
     return "\n".join(text_chunks).strip()
 
 
+def _parse_bias_json_from_claude(raw: str) -> tuple[int, str]:
+    """
+    Parse score/analysis from Claude output that may include markdown fences or preamble.
+    """
+    text = raw.strip()
+
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text, re.IGNORECASE)
+    if fence:
+        text = fence.group(1).strip()
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end <= start:
+            raise ValueError("No JSON object found in Claude response") from None
+        parsed = json.loads(text[start : end + 1])
+
+    if not isinstance(parsed, dict):
+        raise ValueError("Parsed JSON is not an object")
+
+    score = int(parsed["score"])
+    analysis = str(parsed.get("analysis", "")).strip()
+    return score, analysis
+
+
 def ask_claude(prompt: str, max_tokens: int = 500) -> str:
     client = get_anthropic_client()
     try:
@@ -397,19 +425,21 @@ def check_bias(payload: BiasCheckRequest) -> BiasCheckResponse:
         "Score bias risk on a 1-10 scale where:\n"
         "- 1 = no bias risk\n"
         "- 10 = severe bias/discrimination\n"
-        "Return strict JSON with keys: score (int), analysis (string).\n\n"
+        "Respond with ONLY a single JSON object, no other text, with keys \"score\" (integer) "
+        "and \"analysis\" (string). Do not use markdown code fences.\n\n"
         f"Email:\n{payload.email_text}"
     )
 
     raw = ask_claude(prompt, max_tokens=250)
     try:
-        parsed = json.loads(raw)
-        score = int(parsed["score"])
-        analysis = str(parsed["analysis"]).strip()
-    except Exception as exc:
+        score, analysis = _parse_bias_json_from_claude(raw)
+    except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"Unable to parse bias score from Claude response: {raw}",
+            detail=(
+                f"Unable to parse bias JSON from Claude response: {exc!s}. "
+                f"Raw (truncated): {raw[:800]!r}"
+            ),
         ) from exc
 
     if not 1 <= score <= 10:
