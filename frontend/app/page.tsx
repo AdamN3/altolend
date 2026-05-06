@@ -272,7 +272,7 @@ export default function Home() {
             </h1>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-white/60">
               Instant decisions powered by machine learning. No long waits, no
-              hidden criteria — just transparent lending built on trust.
+              hidden criteria just transparent lending built on trust.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-4 text-sm text-white/50">
               <span className="flex items-center gap-2">
@@ -291,7 +291,141 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Curved transition into light section */}
+        {/* Curved transition into How It Works */}
+        <div className="absolute bottom-0 left-0 right-0">
+          <svg
+            viewBox="0 0 1440 56"
+            fill="none"
+            className="block w-full"
+            preserveAspectRatio="none"
+          >
+            <path
+              d="M0 56h1440V28C1200 0 240 0 0 28v28Z"
+              className="fill-primary"
+            />
+          </svg>
+        </div>
+      </section>
+
+      {/* ── How It Works ── */}
+      <section id="how-it-works" className="relative bg-primary py-20 sm:py-28">
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+            backgroundSize: "40px 40px",
+          }}
+          aria-hidden="true"
+        />
+
+        <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <p className="text-center text-sm font-semibold tracking-widest text-cta uppercase">
+            How It Works
+          </p>
+          <h2 className="mt-3 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Four steps to a decision
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-center text-base text-white/50">
+            From application to answer in seconds — powered by machine learning
+            and an autonomous AI agent pipeline.
+          </p>
+
+          <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                step: "01",
+                title: "Submit Application",
+                desc: "Fill out the loan form with your financial details. All data is encrypted end-to-end.",
+              },
+              {
+                step: "02",
+                title: "ML Model Predicts",
+                desc: "A Scikit-learn model trained on historical data evaluates your profile with 98% accuracy.",
+              },
+              {
+                step: "03",
+                title: "AI Agent Pipeline",
+                desc: "Claude generates a decision email, runs bias detection, and crafts alternative offers if needed.",
+              },
+              {
+                step: "04",
+                title: "Instant Decision",
+                desc: "Receive your approval or rejection in seconds with a personalized notification email.",
+              },
+            ].map((item) => (
+              <div
+                key={item.step}
+                className="group rounded-xl border border-white/[0.06] bg-white/[0.03] p-6 transition-colors duration-200 hover:border-white/10 hover:bg-white/[0.05]"
+              >
+                <span className="text-2xl font-bold text-cta">{item.step}</span>
+                <h3 className="mt-3 text-base font-semibold text-white">
+                  {item.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/45">
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Tech Stack ── */}
+      <section id="tech-stack" className="relative border-t border-white/[0.06] bg-primary py-20 sm:py-28">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <p className="text-center text-sm font-semibold tracking-widest text-cta uppercase">
+            Tech Stack
+          </p>
+          <h2 className="mt-3 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Built with modern tools
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-center text-base text-white/50">
+            A full-stack architecture combining machine learning, agentic AI,
+            and modern web technologies.
+          </p>
+
+          <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                name: "Python & Scikit-learn",
+                desc: "ML model training and prediction pipeline for loan approval decisions.",
+              },
+              {
+                name: "FastAPI",
+                desc: "High-performance async API serving predictions, email generation, and bias checks.",
+              },
+              {
+                name: "PostgreSQL",
+                desc: "Persistent storage for all loan applications, decisions, and audit history.",
+              },
+              {
+                name: "Anthropic Claude API",
+                desc: "Powers email generation, bias detection, and next-best-offer recommendations.",
+              },
+              {
+                name: "Next.js & TypeScript",
+                desc: "React-based frontend with type safety, server components, and instant navigation.",
+              },
+              {
+                name: "Railway & Vercel",
+                desc: "Cloud deployment for the API, database, and frontend with CI/CD pipelines.",
+              },
+            ].map((tech) => (
+              <div
+                key={tech.name}
+                className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 transition-colors duration-200 hover:border-white/10 hover:bg-white/[0.05]"
+              >
+                <h3 className="text-sm font-semibold text-cta">{tech.name}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/45">
+                  {tech.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Curved transition into light form section */}
         <div className="absolute bottom-0 left-0 right-0">
           <svg
             viewBox="0 0 1440 56"
