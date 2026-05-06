@@ -37,19 +37,19 @@ const FIELD_DEFS = [
     name: "income_annum",
     label: "Annual Income",
     type: "number",
-    placeholder: "e.g. 5000000",
+    placeholder: "e.g. 75000",
   },
   {
     name: "loan_amount",
     label: "Loan Amount Requested",
     type: "number",
-    placeholder: "e.g. 15000000",
+    placeholder: "e.g. 25000",
   },
   {
     name: "loan_term",
     label: "Loan Term (Months)",
     type: "number",
-    placeholder: "e.g. 12",
+    placeholder: "e.g. 36",
   },
   {
     name: "cibil_score",
@@ -63,25 +63,25 @@ const FIELD_DEFS = [
     name: "residential_assets_value",
     label: "Residential Assets Value",
     type: "number",
-    placeholder: "e.g. 5000000",
+    placeholder: "e.g. 320000",
   },
   {
     name: "commercial_assets_value",
     label: "Commercial Assets Value",
     type: "number",
-    placeholder: "e.g. 3000000",
+    placeholder: "e.g. 150000",
   },
   {
     name: "luxury_assets_value",
     label: "Luxury Assets Value",
     type: "number",
-    placeholder: "e.g. 2000000",
+    placeholder: "e.g. 45000",
   },
   {
     name: "bank_asset_value",
     label: "Bank Asset Value",
     type: "number",
-    placeholder: "e.g. 4000000",
+    placeholder: "e.g. 12000",
   },
 ] as const;
 
