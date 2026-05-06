@@ -219,22 +219,22 @@ export default function Home() {
 
           <nav className="hidden items-center gap-8 text-sm font-medium sm:flex">
             <a
-              href="#"
+              href="#how-it-works"
               className="cursor-pointer text-white/70 transition-colors duration-150 hover:text-white"
             >
-              Products
+              How It Works
             </a>
             <a
-              href="#"
+              href="#tech-stack"
               className="cursor-pointer text-white/70 transition-colors duration-150 hover:text-white"
             >
-              About
+              Tech Stack
             </a>
             <a
-              href="#"
+              href="#apply"
               className="cursor-pointer text-white/70 transition-colors duration-150 hover:text-white"
             >
-              Contact
+              Try Demo
             </a>
           </nav>
 
