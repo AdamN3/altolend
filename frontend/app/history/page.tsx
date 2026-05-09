@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 interface LoanApplicationInput {
   no_of_dependents: number;
@@ -33,12 +33,12 @@ const PLACEHOLDER_CUSTOMER = {
   email: "applicant@altolend.com",
 };
 
-function formatUSD(cents: number): string {
+function formatUSD(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
-  }).format(cents);
+  }).format(value);
 }
 
 function formatDate(iso: string): string {
@@ -67,6 +67,20 @@ export default function HistoryPage() {
   const [loadingEmails, setLoadingEmails] = useState<Record<number, boolean>>(
     {},
   );
+
+  const stats = useMemo(() => {
+    const total = applications.length;
+    const approved = applications.filter(
+      (a) => a.decision === "approved",
+    ).length;
+    const approvalRate = total > 0 ? (approved / total) * 100 : 0;
+    const avgLoan =
+      total > 0
+        ? applications.reduce((sum, a) => sum + a.input_data.loan_amount, 0) /
+          total
+        : 0;
+    return { total, approvalRate, avgLoan };
+  }, [applications]);
 
   function handleLogin() {
     if (password === CORRECT_PASSWORD) {
@@ -197,7 +211,7 @@ export default function HistoryPage() {
 
       {/* Content */}
       <main className="flex-1 px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-6xl">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-32">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-[#F59E0B]" />
@@ -220,40 +234,76 @@ export default function HistoryPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-white/10">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 bg-white/[0.03]">
-                    <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
-                      Date
-                    </th>
-                    <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
-                      Loan Amount
-                    </th>
-                    <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
-                      Decision
-                    </th>
-                    <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
-                      Email
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {applications.map((app) => (
-                    <TableRow
-                      key={app.id}
-                      app={app}
-                      emailContent={expandedEmails[app.id]}
-                      emailLoading={loadingEmails[app.id] ?? false}
-                      onToggleEmail={() => toggleEmail(app)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {/* Stats Summary Bar */}
+              <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <StatCard
+                  label="Total Applications"
+                  value={stats.total.toString()}
+                />
+                <StatCard
+                  label="Approval Rate"
+                  value={`${stats.approvalRate.toFixed(1)}%`}
+                />
+                <StatCard
+                  label="Avg Loan Amount"
+                  value={formatUSD(stats.avgLoan)}
+                />
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-white/[0.03]">
+                      <th className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
+                        Date
+                      </th>
+                      <th className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
+                        Loan Amount
+                      </th>
+                      <th className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
+                        Credit Score
+                      </th>
+                      <th className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
+                        Annual Income
+                      </th>
+                      <th className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
+                        Decision
+                      </th>
+                      <th className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-white/40">
+                        Email
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {applications.map((app) => (
+                      <TableRow
+                        key={app.id}
+                        app={app}
+                        emailContent={expandedEmails[app.id]}
+                        emailLoading={loadingEmails[app.id] ?? false}
+                        onToggleEmail={() => toggleEmail(app)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4">
+      <p className="text-xs font-medium uppercase tracking-wider text-white/40">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-bold text-white/90">{value}</p>
     </div>
   );
 }
@@ -271,17 +321,24 @@ function TableRow({
 }) {
   const approved = app.decision === "approved";
   const expanded = emailContent !== undefined;
+  const colCount = 6;
 
   return (
     <>
       <tr className="transition-colors duration-100 hover:bg-white/[0.02]">
-        <td className="whitespace-nowrap px-5 py-4 text-white/70">
+        <td className="whitespace-nowrap px-4 py-4 text-white/70">
           {formatDate(app.timestamp_utc)}
         </td>
-        <td className="whitespace-nowrap px-5 py-4 font-medium text-white/90">
+        <td className="whitespace-nowrap px-4 py-4 font-medium text-white/90">
           {formatUSD(app.input_data.loan_amount)}
         </td>
-        <td className="px-5 py-4">
+        <td className="whitespace-nowrap px-4 py-4 text-white/70">
+          {app.input_data.cibil_score}
+        </td>
+        <td className="whitespace-nowrap px-4 py-4 text-white/70">
+          {formatUSD(app.input_data.income_annum)}
+        </td>
+        <td className="px-4 py-4">
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
               approved
@@ -292,7 +349,7 @@ function TableRow({
             {approved ? "Approved" : "Rejected"}
           </span>
         </td>
-        <td className="px-5 py-4">
+        <td className="px-4 py-4">
           <button
             onClick={onToggleEmail}
             disabled={emailLoading}
@@ -313,7 +370,7 @@ function TableRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={4} className="bg-white/[0.02] px-5 py-4">
+          <td colSpan={colCount} className="bg-white/[0.02] px-4 py-4">
             <div className="whitespace-pre-line rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm leading-relaxed text-white/70">
               {emailContent}
             </div>
