@@ -148,6 +148,7 @@ export default function Home() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [isColdStart, setIsColdStart] = useState(false);
 
   function onChange(name: FieldName, value: string) {
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -163,6 +164,7 @@ export default function Home() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setServerError("");
+    setIsColdStart(false);
 
     const validationErrors = validate(form);
     if (Object.keys(validationErrors).length > 0) {
@@ -174,11 +176,17 @@ export default function Home() {
     const payload = buildPayload(form);
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeout);
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -194,9 +202,21 @@ export default function Home() {
       );
       router.push("/results");
     } catch (err) {
-      setServerError(
-        err instanceof Error ? err.message : "An unexpected error occurred.",
-      );
+      const isNetworkOrTimeout =
+        err instanceof DOMException ||
+        (err instanceof TypeError && err.message.includes("fetch")) ||
+        (err instanceof Error && err.name === "AbortError");
+
+      if (isNetworkOrTimeout) {
+        setIsColdStart(true);
+        setServerError(
+          "Our servers are waking up, please wait a moment and try submitting again. This can take up to 30 seconds on first load.",
+        );
+      } else {
+        setServerError(
+          err instanceof Error ? err.message : "An unexpected error occurred.",
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -533,7 +553,11 @@ export default function Home() {
 
               {serverError && (
                 <div
-                  className="col-span-full rounded-lg border border-error/30 bg-error-light px-4 py-3 text-sm text-error"
+                  className={`col-span-full rounded-lg border px-4 py-3 text-sm ${
+                    isColdStart
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                      : "border-error/30 bg-error-light text-error"
+                  }`}
                   role="alert"
                 >
                   {serverError}

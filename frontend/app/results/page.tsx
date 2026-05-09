@@ -63,10 +63,19 @@ export default function ResultsPage() {
   const [emailText, setEmailText] = useState("");
   const [recommendation, setRecommendation] = useState("");
   const [error, setError] = useState("");
+  const [isColdStart, setIsColdStart] = useState(false);
+
+  function fetchWithTimeout(url: string, options: RequestInit = {}) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+      clearTimeout(timeout),
+    );
+  }
 
   const runPipeline = useCallback(async (data: StoredResult) => {
     try {
-      const emailRes = await fetch(`${API_BASE}/generate-email`, {
+      const emailRes = await fetchWithTimeout(`${API_BASE}/generate-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,7 +87,7 @@ export default function ResultsPage() {
       if (!emailRes.ok) throw new Error("Failed to generate email");
       const { email_text } = await emailRes.json();
 
-      const biasRes = await fetch(`${API_BASE}/check-bias`, {
+      const biasRes = await fetchWithTimeout(`${API_BASE}/check-bias`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email_text }),
@@ -89,7 +98,7 @@ export default function ResultsPage() {
       setEmailText(biasData.passed ? email_text : UNDER_REVIEW_MSG);
 
       if (data.decision === "rejected") {
-        const nboRes = await fetch(`${API_BASE}/next-best-offer`, {
+        const nboRes = await fetchWithTimeout(`${API_BASE}/next-best-offer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -103,9 +112,21 @@ export default function ResultsPage() {
         setRecommendation(rec);
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Something went wrong processing your results.",
-      );
+      const isNetworkOrTimeout =
+        err instanceof DOMException ||
+        (err instanceof TypeError && err.message.includes("fetch")) ||
+        (err instanceof Error && err.name === "AbortError");
+
+      if (isNetworkOrTimeout) {
+        setIsColdStart(true);
+        setError(
+          "Our servers are waking up, please wait a moment and try submitting again. This can take up to 30 seconds on first load.",
+        );
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Something went wrong processing your results.",
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -198,15 +219,44 @@ export default function ResultsPage() {
               </p>
             </div>
           ) : error ? (
-            <div className="rounded-2xl border border-error/30 bg-error-light p-8 text-center">
-              <XCircle className="mx-auto h-12 w-12 text-error" aria-hidden="true" />
-              <p className="mt-4 text-sm font-medium text-error">{error}</p>
+            <div
+              className={`rounded-2xl border p-8 text-center ${
+                isColdStart
+                  ? "border-amber-500/30 bg-amber-500/10"
+                  : "border-error/30 bg-error-light"
+              }`}
+            >
+              {isColdStart ? (
+                <svg
+                  className="mx-auto h-12 w-12 text-amber-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
+                  />
+                </svg>
+              ) : (
+                <XCircle className="mx-auto h-12 w-12 text-error" aria-hidden="true" />
+              )}
+              <p
+                className={`mt-4 text-sm font-medium ${
+                  isColdStart ? "text-amber-300" : "text-error"
+                }`}
+              >
+                {error}
+              </p>
               <button
                 onClick={handleNewApplication}
                 className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white cursor-pointer transition-colors duration-200 hover:bg-primary-hover"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                Start New Application
+                {isColdStart ? "Try Again" : "Start New Application"}
               </button>
             </div>
           ) : (
