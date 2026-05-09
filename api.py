@@ -87,7 +87,7 @@ app = FastAPI(title="AI Loan Approval API", version="1.0.0", lifespan=lifespan)
 
 def _parse_origins() -> list[str]:
     raw_origins = os.getenv(
-        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,https://altolend.vercel.app"
     )
     return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
