@@ -409,6 +409,10 @@ def generate_email(payload: GenerateEmailRequest) -> GenerateEmailResponse:
         "2) Keep it under 180 words.\n"
         "3) Include a clear next step.\n"
         "4) Do not include discriminatory language.\n"
+        "5) All monetary values are in USD. Format all currency amounts as USD with "
+        "dollar signs (e.g. $5,000). Never use rupees, Indian currency symbols, or "
+        "any non-USD currency. The customer is American and all transactions are in "
+        "US dollars.\n"
         "Return only the email body text."
     )
     if payload.application:
