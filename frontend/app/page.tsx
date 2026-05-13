@@ -428,7 +428,7 @@ export default function Home() {
                 desc: "React-based frontend with type safety, server components, and instant navigation.",
               },
               {
-                name: "Railway & Vercel",
+                name: "Render, Supabase & Vercel",
                 desc: "Cloud deployment for the API, database, and frontend with CI/CD pipelines.",
               },
             ].map((tech) => (
